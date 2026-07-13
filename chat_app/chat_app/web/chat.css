@@ -1,0 +1,740 @@
+* { box-sizing: border-box; }
+body {
+    font-family: sans-serif;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f4f4f6;
+}
+
+/* 방 만들기/비밀번호/닉네임 화면이 공유하는 카드 레이아웃. #chat과 비슷한
+   톤(흰 배경, 둥근 모서리, 그림자)으로 통일한다. */
+#createRoom, #passwordPrompt, #nicknameEntry {
+    width: 420px;
+    max-height: 640px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    padding: 24px;
+    text-align: center;
+}
+/* 로비는 목록이 있는 만큼 항상 #chat과 같은 고정 최대 크기로 띄운다(내용이
+   적어도 줄어들지 않는다) - 탭 바만 제자리 크기, 그 아래 패널이 남는 세로
+   공간을 전부 채운다. */
+#lobby {
+    width: 420px;
+    height: 640px;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    padding: 24px;
+    text-align: center;
+}
+#lobby h1, #createRoom h1, #passwordPrompt h1, #nicknameEntry h1 {
+    margin-top: 0;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+#createRoom input[type="text"], #createRoom input[type="password"],
+#passwordPrompt input[type="password"],
+#nicknameEntry input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    font-size: 15px;
+    margin-bottom: 10px;
+}
+.radio-row, .checkbox-row { text-align: left; margin-bottom: 10px; font-size: 14px; }
+.radio-row label, .checkbox-row label { margin-right: 14px; }
+.form-btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+.form-btn-row button { flex: 1; padding: 8px 0; }
+.form-error { color: #c0392b; font-size: 0.85em; min-height: 1.2em; margin: 2px 0 8px; }
+
+#roomSearchBar { display: flex; gap: 6px; margin-bottom: 12px; flex-shrink: 0; }
+#roomSearchBar input { flex: 1; padding: 8px; font-size: 14px; }
+#roomList {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    padding: 8px;
+    text-align: left;
+}
+/* 각 방을 메시지 말풍선처럼 독립된 배경 카드로 그려서 방끼리 눈에 띄게
+   구분한다(예전에는 얇은 구분선만 있는 이어진 목록이었다). */
+.room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: #eef1f5;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.room-item:last-child { margin-bottom: 0; }
+.room-item:hover { background: #e3e7ec; }
+.room-item-name { font-weight: 500; }
+.room-item-count { color: #888; font-size: 0.85em; flex-shrink: 0; margin-left: 8px; }
+.room-list-empty { padding: 20px; color: #999; text-align: center; }
+#showCreateRoomBtn { width: 100%; padding: 10px 0; flex-shrink: 0; }
+
+/* 로비 탭("내 채팅방" / "채팅방 찾기"). */
+#lobbyTabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+.lobby-tab {
+    flex: 1;
+    padding: 10px 0;
+    border: none;
+    background: none;
+    font-size: 14px;
+    cursor: pointer;
+    color: #888;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.lobby-tab.active { color: #333; font-weight: bold; border-bottom-color: #333; }
+.lobby-tab:hover { background: #f5f5f5; }
+
+/* 탭 바 아래 남는 세로 공간을 두 패널이 항상 꽉 채운다(안 보이는 쪽은
+   .hidden의 display:none !important가 이긴다). */
+#myRoomsPanel, #findRoomsPanel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* "내 채팅방" 목록: 제목 + 인원수 + 마지막 미리보기 + 안읽음 배지. */
+#myRoomList {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px;
+    text-align: left;
+}
+/* .room-item과 같은 이유로, 각 방을 말풍선처럼 독립된 배경 카드로 그린다. */
+.my-room-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: #eef1f5;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.my-room-item:last-child { margin-bottom: 0; }
+.my-room-item:hover { background: #e3e7ec; }
+.my-room-item-main { flex: 1; min-width: 0; }
+.my-room-item-title-row { display: flex; align-items: baseline; gap: 6px; }
+.my-room-item-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.my-room-item-count { color: #888; font-size: 0.8em; flex-shrink: 0; }
+.my-room-item-preview {
+    font-size: 0.8em;
+    color: #888;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.my-room-item-badge {
+    flex-shrink: 0;
+    background: #e53935;
+    color: white;
+    font-size: 0.75em;
+    font-weight: bold;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+}
+.my-room-list-empty { padding: 20px; color: #999; text-align: center; }
+
+#chat {
+    position: relative; /* #mentionToasts를 이 카드 기준 모서리에 띄우기 위함 */
+    width: 560px;
+    height: 640px;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    overflow: hidden;
+}
+
+/* 멘션 알림 토스트 스택. 채팅 카드 우측 상단에 떠 있다가, 누르면 해당
+   메시지로 이동하고 사라진다(클릭 안 하면 몇 초 뒤 자동으로 사라짐). */
+#mentionToasts {
+    position: absolute;
+    top: 48px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 20;
+    max-width: 240px;
+    pointer-events: none; /* 토스트가 없을 때는 밑에 있는 로그 클릭을 막지 않는다 */
+}
+.mention-toast {
+    pointer-events: auto;
+    background: #2d3436;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    animation: mention-toast-in 0.15s ease-out;
+}
+.mention-toast:hover { background: #1e2224; }
+.mention-toast .toast-sender { font-weight: bold; margin-bottom: 2px; }
+.mention-toast .toast-preview {
+    opacity: 0.85;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@keyframes mention-toast-in {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* 멘션 팝업에서 이동해 온 메시지 말풍선을 위로 통통 튀겨서 눈에 띄게 한다. */
+@keyframes mention-bounce {
+    0%, 100% { transform: translateY(0); }
+    15% { transform: translateY(-10px); }
+    30% { transform: translateY(0); }
+    45% { transform: translateY(-10px); }
+    60% { transform: translateY(0); }
+    75% { transform: translateY(-6px); }
+    90% { transform: translateY(0); }
+}
+.bubble.mention-bounce { animation: mention-bounce 1s ease-in-out; }
+
+/* ID 선택자(#chat, #emojiPanel 등)가 자체 display 값을 갖고 있어도
+   이 유틸리티 클래스가 항상 이기도록 !important를 사용한다. */
+.hidden { display: none !important; }
+
+#chatRoomHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #ddd;
+    font-weight: bold;
+    font-size: 14px;
+    background: #fafafa;
+    flex-shrink: 0;
+}
+#chatRoomName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#backToLobbyBtn, #leaveRoomBtn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: normal;
+    font-size: 14px;
+    padding: 4px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    color: #444;
+}
+#backToLobbyBtn:hover, #leaveRoomBtn:hover { background: #f0f0f0; }
+
+/* 상단 고정 메시지 팝업 - 말풍선과는 확실히 다른, 눈에 띄는 바 형태로
+   헤더 바로 아래에 뜬다(방장만 볼 수 있는 ✕로 고정을 해제할 수 있다). */
+#pinnedPopup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #fff8e1;
+    border-bottom: 1px solid #f0dfa0;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+#pinnedPopup:hover { background: #fef3d0; }
+#pinnedPopupIcon { font-size: 16px; flex-shrink: 0; }
+#pinnedPopupBody { flex: 1; min-width: 0; }
+#pinnedPopupSender { font-size: 0.75em; font-weight: bold; color: #a3821a; }
+#pinnedPopupPreview {
+    font-size: 0.85em;
+    color: #5c4a12;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#pinnedUnpinBtn {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: #a3821a;
+    padding: 2px 6px;
+}
+#pinnedUnpinBtn:hover { color: #5c4a12; }
+
+/* #log는 이 안에서 스크롤되고, #scrollToBottomBtn은 그 스크롤과 무관하게
+   래퍼 우측 하단에 고정으로 떠 있어야 하므로 형제 요소로 둔다(같은 자식으로
+   두면 #log 스크롤을 따라 같이 움직여버린다). */
+#logWrapper { position: relative; flex: 1; min-height: 0; }
+#log { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 12px; }
+
+#scrollToBottomBtn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+    background: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 15;
+}
+#scrollToBottomBtn:hover { background: #f0f0f0; }
+
+/* 파일을 끌어다 놓는 동안 로그 영역 전체를 덮는 안내판. */
+#dropOverlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(30, 136, 229, 0.08);
+    border: 2px dashed #1e88e5;
+    border-radius: 8px;
+    color: #1e88e5;
+    font-weight: bold;
+    font-size: 15px;
+    pointer-events: none; /* 오버레이 자체가 drop 이벤트를 가로채지 않도록 */
+    z-index: 25;
+}
+
+/* 묶음 하나 = 이름을 맨 위에 한 번만 보여주고, 그 아래로 같은 사람이 연달아
+   보낸 말풍선들을 세로로 쌓는 세로 스택. */
+.msg-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+}
+.msg-group .group-name { font-weight: bold; margin-bottom: 2px; }
+/* 같은 묶음 안에서 연달아 오는 말풍선끼리 살짝 띄운다(이름과 첫 말풍선
+   사이는 group-name의 margin-bottom만으로 충분하므로 건드리지 않는다).
+   인접 결합자(+)가 아니라 일반 형제 결합자(~)를 쓰는 이유: 각 .msg
+   바로 뒤에 그 메시지의 .msg-reactions가 끼어들 수 있어서, 두 .msg가
+   항상 바로 붙어있는 형제라는 보장이 없다. */
+.msg-group .msg ~ .msg { margin-top: 3px; }
+
+/* 말풍선 + 시간을 한 줄로 배치한다. min-width: 0을 줘야 플렉스 안에서
+   말풍선이 넘치지 않고 오른쪽 끝에 닿기 전에 줄바꿈된다. */
+.msg-group .msg {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 0;
+}
+.msg-group .bubble {
+    max-width: 78%;
+    min-width: 0;
+    background: #eef1f5;
+    border-radius: 12px;
+    padding: 6px 10px;
+    overflow-wrap: break-word;
+}
+/* 일반 메시지 말풍선(귓속말 제외)은 클릭해서 답장을 시작할 수 있다. */
+.msg-group .bubble:not(.whisper) { cursor: pointer; }
+.msg-group .bubble:not(.whisper):hover { filter: brightness(0.96); }
+.msg-group .time { font-size: 0.7em; color: #999; flex-shrink: 0; }
+.msg-group .bubble.whisper { background: #f2e8fb; font-style: italic; }
+.msg-group .bubble.whisper.clickable { cursor: pointer; }
+.msg-group .bubble.whisper.clickable:hover { background: #e9dcf8; }
+
+/* 첨부 파일 말풍선: 아이콘 + 파일명/용량. 누르면 미리보기 팝업이 뜬다
+   (클릭 커서/hover는 위 .bubble:not(.whisper) 규칙을 그대로 물려받는다). */
+.msg-group .bubble.file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.msg-group .bubble.file .file-icon { font-size: 20px; flex-shrink: 0; }
+.msg-group .bubble.file .file-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.msg-group .bubble.file .file-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+}
+.msg-group .bubble.file .file-size { font-size: 0.8em; color: #888; }
+
+/* 답장 묶음의 인용구: 원본 메시지로 이동하는 버튼 역할도 겸한다. */
+.msg-group .reply-quote {
+    display: block;
+    max-width: 78%;
+    font-size: 0.8em;
+    color: #777;
+    background: #eef1f5;
+    border-left: 3px solid #b9c2cc;
+    padding: 3px 8px;
+    margin-bottom: 3px;
+    border-radius: 4px;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.msg-group .reply-quote:hover { background: #e3e7ec; }
+
+/* 말풍선 바로 아래에 뜨는 이모티콘 반응 뱃지 줄. 반응이 하나도 없으면
+   .hidden으로 자리를 차지하지 않는다. */
+.msg-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 3px;
+}
+.reaction-pill {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    border: 1px solid #ddd;
+    background: #f5f6f8;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 0.78em;
+    line-height: 1.6;
+    cursor: pointer;
+}
+.reaction-pill:hover { background: #eceff2; }
+/* 내가 반응한 이모티콘은 배경/테두리를 살짝 다르게 표시한다. */
+.reaction-pill.mine {
+    background: #dde7fb;
+    border-color: #7fa6f0;
+}
+
+/* 수정됨 표시(시간 정보 바로 앞에 붙는다)와 삭제된 메시지 자리 표시. */
+.edited-tag { font-size: 0.65em; color: #999; flex-shrink: 0; }
+.msg-group .bubble.deleted {
+    font-style: italic;
+    color: #999;
+    background: #f4f4f4 !important;
+    cursor: default;
+}
+
+.system { color: #888; font-style: italic; font-size: 0.9em; margin-bottom: 8px; }
+.date-divider { text-align: center; color: #aaa; font-size: 0.8em; margin: 14px 0; }
+
+/* 답장 대상 미리보기 바(입력창 바로 위). */
+#replyPreview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 12px;
+    background: #f5f5f5;
+    border-top: 1px solid #ddd;
+    font-size: 12.5px;
+    color: #555;
+    flex-shrink: 0;
+}
+#replyPreviewText {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+#replyPreviewText b { color: #333; }
+#replyPreviewCancel {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 15px;
+    color: #888;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+#replyPreviewCancel:hover { color: #333; }
+
+#mentionPopup {
+    border-top: 1px solid #ddd;
+    max-height: 140px;
+    overflow-y: auto;
+}
+.mention-item { padding: 6px 12px; cursor: pointer; font-size: 14px; }
+.mention-item:hover { background: #f0f0f0; }
+.mention-item.highlighted { background: #eef1f5; }
+.mention-item-all { font-style: italic; color: #555; }
+
+#inputBar { display: flex; align-items: flex-end; border-top: 1px solid #ddd; padding: 8px; }
+#msgInput {
+    flex: 1;
+    padding: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    resize: none;
+    overflow-y: auto;
+}
+#msgInput:disabled { background: #f4f4f4; color: #c0392b; font-style: italic; }
+#sendBtn { margin-left: 6px; padding: 8px 14px; align-self: flex-end; }
+#sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+#toolButtons { display: flex; flex-direction: column; gap: 4px; margin-right: 6px; }
+.tool-btn {
+    padding: 6px 10px;
+    font-size: 18px;
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.tool-btn:hover { background: #f0f0f0; }
+
+#emojiPanel {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 8px;
+    border-top: 1px solid #ddd;
+    max-height: 140px;
+    overflow-y: auto;
+}
+#emojiPanel button {
+    font-size: 20px;
+    padding: 4px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+#emojiPanel button:hover { background: #f0f0f0; }
+
+/* 닉네임 색상을 고르는 팔레트. 이모티콘 패널과 같은 자리(입력창 바로 위)에
+   같은 방식으로 토글되지만, 버튼은 색이 있는 원 스와치다. */
+#colorPalette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border-top: 1px solid #ddd;
+}
+.color-swatch {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+}
+.color-swatch:hover { border-color: #333; }
+
+/* 내 메시지 우클릭 시 뜨는 수정/삭제 메뉴. 클릭 좌표에 맞춰 JS가 top/left를
+   직접 지정하므로 position: fixed로 뷰포트 기준 배치한다. */
+#messageContextMenu {
+    position: fixed;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 30;
+    overflow: hidden;
+}
+#messageContextMenu button {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: white;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+#messageContextMenu button:hover { background: #f0f0f0; }
+#ctxDeleteBtn { color: #c0392b; }
+
+/* "이모티콘으로 반응하기"를 고르면 뜨는 작은 이모티콘 선택 팝업. 우클릭
+   메뉴와 마찬가지로 클릭 좌표에 맞춰 JS가 top/left를 직접 지정한다. */
+#reactionPicker {
+    position: fixed;
+    display: flex;
+    gap: 2px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 4px 6px;
+    z-index: 30;
+}
+#reactionPicker button {
+    font-size: 20px;
+    padding: 4px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 50%;
+}
+#reactionPicker button:hover { background: #f0f0f0; }
+
+/* "내 채팅방" 항목 우클릭 시 뜨는 "안읽음 모두 읽음으로 표시" 메뉴. */
+#roomContextMenu {
+    position: fixed;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 30;
+    overflow: hidden;
+}
+#roomContextMenu button {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: white;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+#roomContextMenu button:hover { background: #f0f0f0; }
+
+/* 지금 보고 있지 않은 다른 방에서 새 메시지가 왔을 때, 로비든 다른 채팅방
+   화면이든 상관없이 항상 뷰포트 기준 상단 중앙에 크게 뜨는 알람 팝업. #chat
+   카드 안쪽에 작게 갇힌 #mentionToasts(옆에서 슬라이드)와는 다르게, 화면
+   위쪽에서 아래로 떨어지듯 나타나서 눈에 잘 띄게 한다. */
+#globalRoomToasts {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    z-index: 40;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+}
+.room-alert-toast {
+    background: #2d3436;
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    animation: room-alert-toast-in 0.2s ease-out;
+}
+.room-alert-toast:hover { background: #1e2224; }
+.room-alert-toast .room-alert-toast-room { font-weight: bold; margin-bottom: 4px; font-size: 1.1em; }
+.room-alert-toast .room-alert-toast-preview {
+    opacity: 0.9;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@keyframes room-alert-toast-in {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 파일 미리보기 팝업. 다른 컨텍스트 메뉴들보다 훨씬 크게(뷰포트 대부분을
+   차지하도록) 띄운다 - 이미지/PDF를 실제로 읽을 수 있어야 하므로. */
+#filePreviewModal { position: fixed; inset: 0; z-index: 50; }
+#filePreviewBackdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+}
+#filePreviewBox {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(80vw, 900px);
+    height: min(85vh, 750px);
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#filePreviewHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #ddd;
+    font-weight: bold;
+}
+#filePreviewName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#filePreviewCloseBtn {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #888;
+    padding: 2px 6px;
+}
+#filePreviewCloseBtn:hover { color: #333; }
+#filePreviewBody {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #2d2d2d;
+    overflow: auto;
+}
+#filePreviewBody img { max-width: 100%; max-height: 100%; object-fit: contain; }
+#filePreviewBody iframe { width: 100%; height: 100%; border: none; background: white; }
+.file-preview-unsupported { color: #ccc; text-align: center; padding: 24px; font-size: 14px; }
+#filePreviewFooter {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+#filePreviewDownloadBtn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #1e88e5;
+    color: white;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+}
+#filePreviewDownloadBtn:hover { background: #1976d2; }
